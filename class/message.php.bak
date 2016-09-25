@@ -1,0 +1,95 @@
+<?php
+
+//---- класс для работы с сообщениями ----//
+
+class message {
+
+  //---- Переменные ----//
+  private $send_params; //Входные параметры
+  private $data; //Информация из вне
+
+  public function send_data($data, $request_params) {
+    $this->data = $data;
+    $this->send_params = $request_params;
+  }
+
+  public function get_data($type = null) {
+    if ( isset( $this->data ) && $type == 'data' ) return $this->data;
+    elseif ( isset ( $this->send_params ) && $type == 'params' ) return $this->send_params;
+    elseif ( isset ( $this->send_params ) && isset( $this->data ) && $type == 'check' ) return true;
+    else return false;
+  }
+
+  public function send() {
+
+    if (! $this->get_data('check') ) {
+      echo 'Data or Send Parameters are not setup';
+      die;
+    }
+
+    //---- Помещаем параметры в переменную для общего пользования и проверяем сообщение ----//
+    $this->check_msg_type();
+
+    //---- формируем строку для отправки ----//
+    $get_params = http_build_query($this->send_params);
+
+    //---- Отправляем сообщение ----//
+    $this->send_file = file_get_contents('https://api.vk.com/method/messages.send?'. $get_params);
+
+    //---- Проверка на ошибки ----//
+    if (property_exists($this->read(), 'error')) {
+      $filename = 'log/message_'.$this->data['time'].'.txt';
+      file_put_contents($filename, print_r($this->read(), true));
+      $this->error_msg();
+    }
+    return $this->send_file;
+  }
+
+  //---- Авторизация ----//
+  private function registration() {
+
+    $params = array(
+      'client_id' => $this->data['client_id'],
+      'display' => 'page',
+      'redirect_uri' => 'http://test1.lp5.com.ua/j4ck/vkbot.php',
+      'response_type' => 'code',
+      'v' => '5.53'
+    );
+    $params = http_build_query($params);
+
+    $this->send_params['message'] = "Заходи: https://oauth.vk.com/authorize?{$params}";
+  }
+
+  private function help() {
+    $this->send_params['message'] = "ну типа\nвторая строка";
+  }
+
+  //---- Проверка на сообщение ----//
+  private function check_msg_type() {
+
+    preg_match('/\/(\S*)/i', $this->data['user_msg'], $matches);
+    switch($matches[1]) {
+      case 'зайти':
+        $this->registration();
+        break;
+      case 'помощь':
+        $this->help();
+        break;
+      default:
+        //$this->send_params['message'] = "Пиши /помощь, для того чтоб узнать команды";
+        break;
+    }
+  }
+
+  private function error_msg() {
+    $this->send_params['message'] = 'ну не спамь, братишка :-)';
+    $this->send($this->send_params);
+  }
+
+  //---- Прочитать сообщение ----//
+  public function read() {
+    return json_decode($this->send_file);
+  }
+}
+
+ ?>
